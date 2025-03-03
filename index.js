@@ -1,71 +1,95 @@
-// Description: REST API with MongoDB
-// npm install express mongoose
-// Run this file with node index.js
-// Test with Postman
 require("dotenv").config();
-const express = require('express');
-const mongoose = require('mongoose');
+const express = require("express");
+const { Sequelize, DataTypes } = require("sequelize");
 const app = express();
 app.use(express.json());
+app.use(express.static('public'));  // ให้ Express ใช้โฟลเดอร์ public สำหรับไฟล์ static
 
-// Connect to the MongoDB database
-mongoose.connect('mongodb://admin:IOEfec64362@node71654-sirawatclounddd.proen.app.ruk-com.cloud:27017', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
-// Define the book model
-const bookSchema = new mongoose.Schema({
-  id : Number,
-  title: String,
-  author: String
+const sequelize = new Sequelize({
+  dialect: "sqlite",
+  storage: "./Database/app.sqlite",
 });
 
-const Book = mongoose.model('Book', bookSchema);
-
-// API routes
-// Create a new book with auto-increase id 1,2,3,4,5...
-app.post('/books', async (req, res) => {
-  const lastBook = await Book.findOne().sort({ id: -1 });
-  const newId = lastBook ? lastBook.id + 1 : 1;
-  const book = new Book({
-    id: newId,
-    title: req.body.title,
-    author: req.body.author
-  });
-  await book.save();
-  res.send(book);
-}
-);
-
-// route /books will be used to get all books
-// Get a list of all books
-app.get('/books', async (req, res) => {
-  const books = await Book.find();
-  res.send(books);
+// Define Models
+const Customer = sequelize.define("Customer", {
+  Customer_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  Customer_Name: DataTypes.STRING,
+  Customer_address: DataTypes.STRING,
+  Customer_Phonenumber: DataTypes.STRING,
 });
 
-// Get a single book by id
-app.get('/books/:id', async (req, res) => {
-  const book = await Book.findOne({ id: req.params.id });
-  res.send(book);
+const Product = sequelize.define("Product", {
+  Product_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  Product_Name: DataTypes.STRING,
+  Product_Price: DataTypes.INTEGER,
+  Product_Description: DataTypes.STRING,
+  Product_image: DataTypes.STRING, // สำหรับชื่อไฟล์รูปภาพ
+});
+const Employees = sequelize.define("Employees", {
+  Employees_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  Employees_Name: DataTypes.STRING,
+  Employees_Position: DataTypes.STRING,
+  Employees_Phonenumber: DataTypes.STRING,
 });
 
-// Update a book
-app.put('/books/:id', async (req, res) => {
-  const book = await Book.findOne({ id: req.params.id });
-  book.title = req.body.title;
-  book.author = req.body.author;
-  await book.save();
-  res.send(book);
+const Order = sequelize.define("Order", {
+  Order_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  Order_Datetime: DataTypes.DATE,
+  Order_Total_Price: DataTypes.INTEGER,
 });
 
-// Delete a book
-app.delete('/books/:id', async (req, res) => {
-  const result = await Book.deleteOne({ id: req.params.id });
-  res.send(result);
+const OrderDetail = sequelize.define("OrderDetail", {
+  OrderDetail_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  OrderDetail_Quantity: DataTypes.INTEGER,
+  OrderDetail_Price_Unit: DataTypes.INTEGER,
+  OrderDetail_Total_Price: DataTypes.INTEGER,
 });
 
+const Promotion = sequelize.define("Promotion", {
+  Promotion_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  Promotion_Name: DataTypes.STRING,
+  Promotion_Discount: DataTypes.INTEGER,
+  Promotion_Start_Date: DataTypes.DATE,
+  Promotion_end_Date: DataTypes.DATE,
+  Promotion_Description: DataTypes.STRING,
+});
 
-app.listen(5000, () => {
-  console.log('API server is listening on port 5000');
+const Payment = sequelize.define("Payment", {
+  Payment_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  Payment_Type: DataTypes.STRING,
+  Payment_Amount: DataTypes.INTEGER,
+  Payment_Date: DataTypes.DATE,
+  Payment_Status: DataTypes.STRING,
+});
+
+const Delivery = sequelize.define("Delivery", {
+  Delivery_ID: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  Delivery_Status: DataTypes.STRING,
+  Delivery_date: DataTypes.DATE,
+});
+Order.belongsTo(Customer, { foreignKey: "Order_Customer_ID" });
+OrderDetail.belongsTo(Order, { foreignKey: "OrderDetail_Order_ID" });
+OrderDetail.belongsTo(Product, { foreignKey: "OrderDetail_Product_ID" });
+Payment.belongsTo(Order, { foreignKey: "Payment_Order_ID" });
+Payment.belongsTo(Promotion, { foreignKey: "Payment_Promotion_ID" });
+Delivery.belongsTo(Order, { foreignKey: "Delivery_Order_ID" });
+Delivery.belongsTo(Employees, { foreignKey: "Delivery_Employees_ID" });
+
+module.exports = { Product ,Customer};
+
+sequelize.sync();
+
+app.get('/', async (req, res) => {
+  try {
+    const menu = await Product.findAll(); 
+    res.render('index', { menu }); 
+  } catch (error) {
+    console.error('Error fetching menu:', error);
+    res.status(500).send('Error fetching menu');
+  }
+});
+
+const port = process.env.PORT || 4000;
+app.listen(port, () => {
+  console.log(`Server is running at http://localhost:${port}`);
 });
