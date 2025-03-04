@@ -74,6 +74,8 @@ const Delivery = sequelize.define("Delivery", {
   Delivery_date: DataTypes.DATE,
 });
 
+
+
 Order.hasMany(OrderDetail, { foreignKey: "OrderDetail_Order_ID" });
 Order.belongsTo(Customer, { foreignKey: "Order_Customer_ID" });
 OrderDetail.belongsTo(Order, { foreignKey: "OrderDetail_Order_ID" });
@@ -156,7 +158,7 @@ app.post("/cart/add", async (req, res) => {
 
         // อัปเดตราคาสุทธิใน Order
         const total = await OrderDetail.sum("OrderDetail_Total_Price", { where: { OrderDetail_Order_ID: order.Order_ID } });
-        order.Order_Total_Price = total;
+        order.Order_Total_Price = total || 0;
         await order.save();
 
         res.json({ message: "Product added to cart" });
@@ -288,6 +290,141 @@ app.delete('/OrderDetails/1', (req, res) => {
         }
         res.json({ message: 'User deleted', changes: this.changes });
     });
+});
+// Route สำหรับหน้า Payment
+app.get("/payment/:customerId", async (req, res) => {
+    try {
+        const { customerId } = req.params;
+
+        // ค้นหา Order ที่ยังไม่มีการชำระ
+        const order = await Order.findOne({
+            where: { Order_Customer_ID: customerId },
+            include: [{ model: OrderDetail, include: [Product] }]
+        });
+
+        if (!order) {
+            return res.status(404).json({ error: "Order not found" });
+        }
+
+        // ส่งข้อมูล Order ไปยังหน้า Payment
+        res.render("payment", { order });
+    } catch (error) {
+        console.error("Error fetching payment page:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.post("/payment/purchase", async (req, res) => {
+    try {
+        const { customerId, paymentType, discountAmount } = req.body;
+
+        // ตรวจสอบว่าข้อมูลที่ส่งมาถูกต้อง
+        if (!customerId || !paymentType) {
+            return res.status(400).json({ error: "Customer ID and Payment Type are required" });
+        }
+
+        // ค้นหา Order ที่ยังไม่มีการชำระ
+        let order = await Order.findOne({
+            where: { Order_Customer_ID: customerId }
+        });
+
+        // ถ้าไม่มี Order ให้สร้างใหม่
+        if (!order) {
+            order = await Order.create({
+                Order_Customer_ID: customerId,
+                Order_Datetime: new Date(),
+                Order_Total_Price: 0, // เริ่มต้นที่ 0
+            });
+        }
+
+        // คำนวณยอดรวม
+        const total = await OrderDetail.sum("OrderDetail_Total_Price", { where: { OrderDetail_Order_ID: order.Order_ID } });
+        order.Order_Total_Price = total || 0; // อัปเดตยอดรวม
+        await order.save(); // บันทึกการเปลี่ยนแปลง
+
+        const totalAmount = order.Order_Total_Price + 30; // รวมค่าจัดส่ง 30 บาท
+        const finalAmount = totalAmount - (((discountAmount * -1) / 100) * order.Order_Total_Price);
+
+        // สร้าง Payment
+        const payment = await Payment.create({
+            Payment_Type: paymentType,
+            Payment_Amount: finalAmount,
+            Payment_Date: new Date(),
+            Payment_Order_ID: order.Order_ID,
+            Payment_Discount: discountAmount,
+            Payment_Status: "Completed",
+        });
+        order.Order_Total_Price = finalAmount; 
+        await order.save(); 
+
+        // ลบ OrderDetail หลังจากทำการชำระเงิน
+        //await OrderDetail.destroy({ where: { OrderDetail_Order_ID: order.Order_ID } });
+
+        res.json({ success: true, payment });
+    } catch (error) {
+        console.error("Error processing payment:", error);
+        res.status(500).json({ error: error.message || "Internal server error" });
+    }
+});
+
+app.post("/payment/confirm", async (req, res) => {
+    try {
+        const { customerId, paymentType, paymentAmount } = req.body;
+
+        // ค้นหา Order ที่ยังไม่มีการชำระ
+        const order = await Order.findOne({
+            where: { Order_Customer_ID: customerId }
+        });
+
+        if (!order) {
+            return res.status(404).json({ error: "Order not found" });
+        }
+
+        // สร้าง Payment
+        const payment = await Payment.create({
+            Payment_Type: paymentType,
+            Payment_Amount: paymentAmount,
+            Payment_Date: new Date(),
+            Payment_Status: "Completed",
+            Payment_Order_ID: order.Order_ID,
+        });
+
+        // อัปเดตสถานะ Order เป็น "Paid"
+        payment.Payment_Status = "Pending";
+        await order.save();
+
+        res.json({ success: true, payment });
+    } catch (error) {
+        console.error("Error confirming payment:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+app.post("/promotion/check", async (req, res) => {
+    try {
+        const { promotionCode } = req.body;
+
+        // ค้นหา Promotion จากฐานข้อมูล
+        const promotion = await Promotion.findOne({
+            where: { Promotion_Name: promotionCode }
+        });
+
+        if (!promotion) {
+            return res.status(404).json({ error: "Promotion code not found" });
+        }
+
+        // ตรวจสอบวันที่ Promotion
+        const currentDate = new Date();
+        if (currentDate < promotion.Promotion_Start_Date || currentDate > promotion.Promotion_end_Date) {
+            return res.status(400).json({ error: "Promotion code is expired" });
+        }
+
+        // ส่งส่วนลดกลับไป
+        res.json({ discount: promotion.Promotion_Discount });
+    } catch (error) {
+        console.error("Error checking promotion:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
 });
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
