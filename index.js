@@ -74,7 +74,6 @@ const Delivery = sequelize.define("Delivery", {
   Delivery_date: DataTypes.DATE,
 });
 
-// กำหนดความสัมพันธ์ของตาราง
 Order.hasMany(OrderDetail, { foreignKey: "OrderDetail_Order_ID" });
 Order.belongsTo(Customer, { foreignKey: "Order_Customer_ID" });
 OrderDetail.belongsTo(Order, { foreignKey: "OrderDetail_Order_ID" });
@@ -203,7 +202,6 @@ app.post("/cart/update", async (req, res) => {
             await orderDetail.save();
         }
 
-        // อัปเดตราคาสุทธิของ Order
         const total = await OrderDetail.sum("OrderDetail_Total_Price", { where: { OrderDetail_Order_ID: order.Order_ID } });
         order.Order_Total_Price = total || 0;
         await order.save();
@@ -282,7 +280,15 @@ app.get("/checkout/:customerId", async (req, res) => {
       res.status(500).json({ error: "Internal server error" });
   }
 });
-
+app.delete('/OrderDetails/1', (req, res) => {
+    const userId = req.params.id;
+    db.run('DELETE FROM OrderDetails WHERE OrderDetail_ID = 1', function (err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ message: 'User deleted', changes: this.changes });
+    });
+});
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
