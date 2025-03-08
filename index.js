@@ -49,6 +49,7 @@ const Order = sequelize.define('Order', {
         key: 'Product_ID',
       }
     },
+    Order_Quantity:DataTypes.INTEGER,
     Order_Price_Unit: DataTypes.INTEGER,
     Order_Total_Price: DataTypes.INTEGER,
 });
@@ -144,7 +145,7 @@ Payment.belongsTo(Promotion, { foreignKey: 'Payment_Promotion_ID' });
 Delivery.belongsTo(Order, { foreignKey: 'Delivery_Order_ID' });
 Delivery.belongsTo(Employees, { foreignKey: 'Delivery_Employees_ID' });
 
-module.exports = { Sequelize, sequelize, Product, Customer, Order, Promotion, Payment, Delivery, Material };
+module.exports = { Sequelize, sequelize, Product, Customer, Order, Promotion, Payment, Delivery, Material ,MaterialProduct,Employees};
 
 sequelize.sync();
 
