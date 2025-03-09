@@ -149,18 +149,10 @@ module.exports = { Sequelize, sequelize, Product, Customer, Order, Promotion, Pa
 
 sequelize.sync();
 
-app.get('/', async (req, res) => {
-    try {
-        const menu = await Product.findAll(); 
-        res.render('index', { menu }); 
-    } catch (error) {
-        console.error('Error fetching menu:', error);
-        res.status(500).send('Error fetching menu');
-    }
-});
+
 
 // เริ่มต้นเซิร์ฟเวอร์
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 5000;
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
 });
